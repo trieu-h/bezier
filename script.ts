@@ -21,6 +21,7 @@ class Circle {
     radius: number;
     color: string;
     isPressed: boolean = false;
+    isHovered: boolean = false;
 
     constructor(v: Vector2, radius: number, color: string) {
         this.v = v;
@@ -48,6 +49,7 @@ class BezierCanvas {
     canvas: HTMLCanvasElement;
     board: Board;
     circles: Circle[];
+    cursor = 'default';
 
     constructor(canvas: HTMLCanvasElement, board: Board, circles: Circle[]) {
         this.board = board;
@@ -61,18 +63,8 @@ class BezierCanvas {
     }
 
     onMouseDown(e: MouseEvent) {
-        const rect = this.canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
         for (const circle of this.circles) {
-            const dx = mouseX - circle.v.x;
-            const dy = mouseY - circle.v.y;
-            const insideCircle = Math.sqrt(dx * dx + dy * dy) < RADIUS;
-
-            if (insideCircle) {
-                circle.isPressed = true;
-            }
+            circle.isPressed = circle.isHovered;
         }
     }
 
@@ -82,11 +74,19 @@ class BezierCanvas {
         const mouseY = e.clientY - rect.top;
 
         for (const circle of this.circles) {
+            const dx = mouseX - circle.v.x;
+            const dy = mouseY - circle.v.y;
+            const insideCircle = Math.sqrt(dx * dx + dy * dy) < RADIUS;
+
+            circle.isHovered = insideCircle;
+
             if (circle.isPressed) {
                 circle.update(new Vector2(mouseX, mouseY));
-                this.render();
             }
         }
+
+        this.cursor = this.circles.some(c => c.isHovered) ? 'pointer': 'default';
+        this.render();
     }
 
     onMouseUp(e: MouseEvent) {
@@ -97,6 +97,7 @@ class BezierCanvas {
 
     render(): void {
         this.clearScreen();
+        this.renderCursor();
         this.renderBoard();
         this.renderCircles();
         this.connectCircles();
@@ -104,6 +105,10 @@ class BezierCanvas {
 
     clearScreen(): void {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
+    renderCursor(): void {
+        this.canvas.style.cursor = this.cursor;
     }
 
     renderBoard(): void {
