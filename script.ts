@@ -4,24 +4,32 @@ const STEP = 40;
 const RADIUS = 10;
 const LINE_WIDTH = 5;
 const CENTER = DIMENSION/2;
+const GRID_COLOR = '#d3d3d3';
 
-class Circle {
+class Vector2 {
     x: number;
     y: number;
+
+    constructor(x: number, y: number) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+class Circle {
+    v: Vector2;
     radius: number;
     color: string;
     isPressed: boolean = false;
 
-    constructor(x: number, y: number, radius: number, color: string) {
-        this.x = x;
-        this.y = y;
+    constructor(v: Vector2, radius: number, color: string) {
+        this.v = v;
         this.radius = radius;
         this.color = color;
     }
 
-    update(x: number, y: number): void {
-        this.x = x;
-        this.y = y;
+    update(v: Vector2): void {
+        this.v = v;
     }
 }
 
@@ -36,18 +44,16 @@ class Board {
 }
 
 class BezierCanvas {
+    ctx: CanvasRenderingContext2D;
     canvas: HTMLCanvasElement;
     board: Board;
     circles: Circle[];
-
-    get ctx(): CanvasRenderingContext2D {
-       return this.canvas.getContext("2d")!;
-    }
 
     constructor(canvas: HTMLCanvasElement, board: Board, circles: Circle[]) {
         this.board = board;
         this.circles = circles;
         this.canvas = canvas;
+        this.ctx = this.canvas.getContext("2d");
         this.canvas.width = this.canvas.height = this.board.dimension;
         this.canvas.onmousedown = (e) => this.onMouseDown(e);
         this.canvas.onmousemove = (e) => this.onMouseMove(e);
@@ -60,8 +66,8 @@ class BezierCanvas {
         const mouseY = e.clientY - rect.top;
 
         for (const circle of this.circles) {
-            const dx = mouseX - circle.x;
-            const dy = mouseY - circle.y;
+            const dx = mouseX - circle.v.x;
+            const dy = mouseY - circle.v.y;
             const insideCircle = Math.sqrt(dx * dx + dy * dy) < RADIUS;
 
             if (insideCircle) {
@@ -77,7 +83,7 @@ class BezierCanvas {
 
         for (const circle of this.circles) {
             if (circle.isPressed) {
-                circle.update(mouseX, mouseY);
+                circle.update(new Vector2(mouseX, mouseY));
                 this.render();
             }
         }
@@ -102,18 +108,18 @@ class BezierCanvas {
 
     renderBoard(): void {
         for (let i = 0; i <= this.board.dimension; i+= this.board.step) {
-            this.drawLine(i, 0, i, this.board.dimension);
+            this.drawLine(new Vector2(i, 0), new Vector2(i, this.board.dimension), GRID_COLOR);
         }
 
         for (let i = 0; i <= this.board.dimension; i+= this.board.step) {
-            this.drawLine(0, i, this.board.dimension, i);
+            this.drawLine(new Vector2(0, i), new Vector2(this.board.dimension, i), GRID_COLOR);
         }
     }
 
     renderCircles(): void {
         for (const circle of this.circles) {
             this.ctx.beginPath();
-            this.ctx.arc(circle.x, circle.y, circle.radius, 0, 2 * Math.PI, false);
+            this.ctx.arc(circle.v.x, circle.v.y, circle.radius, 0, 2 * Math.PI, false);
             this.ctx.fillStyle = circle.color;
             this.ctx.fill();
             this.ctx.stroke();
@@ -124,50 +130,46 @@ class BezierCanvas {
         const redCircle = this.circles[0];
         const blueCircle = this.circles[1];
         const greenCircle = this.circles[2];
-        this.drawLine(redCircle.x, redCircle.y, blueCircle.x, blueCircle.y);
-        this.drawLine(blueCircle.x, blueCircle.y, greenCircle.x, greenCircle.y);
+        this.drawLine(redCircle.v, blueCircle.v, 'white', 2);
+        this.drawLine(blueCircle.v, greenCircle.v, 'white', 2);
 
-        let prevX;
-        let prevY;
+        let prevV: Vector2 = null;
 
         for (let t = 0; t <= 1; t+= 0.05) {
-            const [x1, y1] = this.lerp(redCircle.x, redCircle.y, blueCircle.x, blueCircle.y, t);
-            const [x2, y2] = this.lerp(blueCircle.x, blueCircle.y, greenCircle.x, greenCircle.y, t);
-            const [x3, y3] = this.lerp(x1, y1, x2, y2, t);
-            console.log('x3, y3', x3, y3);
+            const l1 = this.lerp(redCircle.v, blueCircle.v, t);
+            const l2 = this.lerp(blueCircle.v, greenCircle.v, t);
+            const l3 = this.lerp(l1, l2, t);
 
-            if (prevX && prevY) {
-                this.drawLine(prevX, prevY, x3, y3);
+            if (prevV) {
+                this.drawLine(prevV, l3, 'red', 2);
             }
 
-            prevX = x3;
-            prevY = y3;
+            prevV = new Vector2(l3.x, l3.y);
         }
     }
 
-    lerp(x1: number, y1: number, x2: number, y2: number, t: number): [number, number] {
-        const x = x1 + (x2 - x1) * t
-        const y = y1 + (y2 - y1) * t
-        return [x, y];
+    lerp(v1: Vector2, v2: Vector2, t: number): Vector2 {
+       const x = v1.x + (v2.x - v1.x) * t;
+       const y = v1.y + (v2.y - v1.y) * t;
+       return new Vector2(x, y);
     }
 
-    drawLine(originX: number, originY: number, destX: number, destY: number): void {
+    drawLine(originV: Vector2, destV: Vector2, color: string, lineWidth = 1): void {
        this.ctx.beginPath();
-       this.ctx.moveTo(originX, originY);
-       this.ctx.lineTo(destX, destY);
-       this.ctx.strokeStyle = '#B8B8B8';
-       this.ctx.lineWidth = 2;
+       this.ctx.moveTo(originV.x, originV.y);
+       this.ctx.lineTo(destV.x, destV.y);
+       this.ctx.strokeStyle = color;
+       this.ctx.lineWidth = lineWidth;
        this.ctx.stroke();
     }
 }
 
 function main(): void {
-    const big = new Big();
     const canvas = document.querySelector('canvas')!;
     const circles = [
-        new Circle(CENTER, CENTER, RADIUS, 'red'),
-        new Circle(CENTER - STEP, CENTER - STEP, RADIUS, 'blue'),
-        new Circle(CENTER + STEP, CENTER + STEP, RADIUS, 'green')
+        new Circle(new Vector2(CENTER - (STEP * 3), CENTER + (STEP * 3)), RADIUS, 'red'),
+        new Circle(new Vector2(CENTER, CENTER - STEP * 3), RADIUS, 'blue'),
+        new Circle(new Vector2(CENTER + (STEP * 3), CENTER + (STEP * 3)), RADIUS, 'green')
     ];
     const board = new Board(DIMENSION, STEP);
     const bezierCanvas = new BezierCanvas(canvas, board, circles);
