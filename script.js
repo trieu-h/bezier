@@ -112,10 +112,13 @@ var BezierCanvas = /** @class */ (function () {
         this.drawLine(redCircle.v, blueCircle.v, 'white', 2);
         this.drawLine(blueCircle.v, greenCircle.v, 'white', 2);
         var prevV = null;
-        for (var t = 0; t <= 1; t += 0.05) {
-            var l1 = this.lerp(redCircle.v, blueCircle.v, t);
-            var l2 = this.lerp(blueCircle.v, greenCircle.v, t);
-            var l3 = this.lerp(l1, l2, t);
+        var steps = 100;
+        // If step is 0.01, we will have floating precision issue
+        // Do t/steps like this will prevent it
+        for (var t = 0; t <= steps; t += 1) {
+            var l1 = this.lerp(redCircle.v, blueCircle.v, t / steps);
+            var l2 = this.lerp(blueCircle.v, greenCircle.v, t / steps);
+            var l3 = this.lerp(l1, l2, t / steps);
             if (prevV) {
                 this.drawLine(prevV, l3, 'red', 2);
             }
