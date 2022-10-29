@@ -132,27 +132,34 @@ class BezierCanvas {
     }
 
     connectCircles(): void {
-        const redCircle = this.circles[0];
-        const blueCircle = this.circles[1];
-        const greenCircle = this.circles[2];
-        this.drawLine(redCircle.v, blueCircle.v, 'white', 2);
-        this.drawLine(blueCircle.v, greenCircle.v, 'white', 2);
+        const firstCircle = this.circles[0];
+        const secondCircle = this.circles[1];
+        const thirdCircle = this.circles[2];
+        const fourthCircle = this.circles[3];
+        this.drawLine(firstCircle.v, secondCircle.v, 'white', 2);
+        this.drawLine(secondCircle.v, thirdCircle.v, 'white', 2);
+        this.drawLine(thirdCircle.v, fourthCircle.v, 'white', 2);
 
-        let prevV: Vector2 = null;
+        let prevV = null ;
         const steps = 100;
 
          // If step is 0.01, we will have floating precision issue
          // Do t/steps like this will prevent it
         for (let t = 0; t <= steps; t += 1) {
-            const l1 = this.lerp(redCircle.v, blueCircle.v, t/steps);
-            const l2 = this.lerp(blueCircle.v, greenCircle.v, t/steps);
-            const l3 = this.lerp(l1, l2, t/steps);
+            const step = t/steps;
+            const l1 = this.lerp(firstCircle.v, secondCircle.v, step);
+            const l2 = this.lerp(secondCircle.v, thirdCircle.v, step);
+            const l3 = this.lerp(thirdCircle.v, fourthCircle.v, step);
+
+            const ll1 = this.lerp(l1, l2, step);
+            const ll2 = this.lerp(l2, l3, step);
+            const ll3 = this.lerp(ll1, ll2, step);
 
             if (prevV) {
-                this.drawLine(prevV, l3, 'red', 2);
+                this.drawLine(prevV, ll3, 'red', 2);
             }
 
-            prevV = new Vector2(l3.x, l3.y);
+            prevV = new Vector2(ll3.x, ll3.y);
         }
     }
 
@@ -175,9 +182,10 @@ class BezierCanvas {
 function main(): void {
     const canvas = document.querySelector('canvas')!;
     const circles = [
-        new Circle(new Vector2(CENTER - (STEP * 3), CENTER + (STEP * 3)), RADIUS, 'red'),
-        new Circle(new Vector2(CENTER, CENTER - STEP * 3), RADIUS, 'blue'),
-        new Circle(new Vector2(CENTER + (STEP * 3), CENTER + (STEP * 3)), RADIUS, 'green')
+        new Circle(new Vector2(CENTER - (STEP * 4), CENTER + (STEP * 3)), RADIUS, 'red'),
+        new Circle(new Vector2(CENTER - (STEP * 4), CENTER - (STEP * 3)), RADIUS, 'yellow'),
+        new Circle(new Vector2(CENTER + (STEP * 4), CENTER - (STEP * 3)), RADIUS, 'green'),
+        new Circle(new Vector2(CENTER + (STEP * 4), CENTER + (STEP * 3)), RADIUS, 'blue')
     ];
     const board = new Board(DIMENSION, STEP);
     const bezierCanvas = new BezierCanvas(canvas, board, circles);
