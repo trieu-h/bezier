@@ -5,6 +5,10 @@ var RADIUS = 10;
 var LINE_WIDTH = 5;
 var CENTER = DIMENSION / 2;
 var GRID_COLOR = '#d3d3d3';
+var BEZIER_CURVE_COLOR = '#FDFDBD';
+var OUTER_LINE_COLOR = '#BCCEF8';
+var FIRST_LAYER_COLOR = '#FF8DC7';
+var SECOND_LAYER_COLOR = '#C47AFF';
 var Vector2 = /** @class */ (function () {
     function Vector2(x, y) {
         this.x = x;
@@ -35,15 +39,32 @@ var Board = /** @class */ (function () {
 var BezierCanvas = /** @class */ (function () {
     function BezierCanvas(canvas, board, circles) {
         var _this = this;
-        this.cursor = 'default';
+        this.intervalRef = null;
+        this.isAnimating = false;
         this.board = board;
         this.circles = circles;
         this.canvas = canvas;
+        this.cursor = 'default';
         this.ctx = this.canvas.getContext("2d");
         this.canvas.width = this.canvas.height = this.board.dimension;
-        this.canvas.onmousedown = function (e) { return _this.onMouseDown(e); };
-        this.canvas.onmousemove = function (e) { return _this.onMouseMove(e); };
-        this.canvas.onmouseup = function (e) { return _this.onMouseUp(e); };
+        this.canvas.onmousedown = function (e) {
+            if (!_this.isAnimating) {
+                _this.onMouseDown(e);
+            }
+            ;
+        };
+        this.canvas.onmousemove = function (e) {
+            if (!_this.isAnimating) {
+                _this.onMouseMove(e);
+            }
+            ;
+        };
+        this.canvas.onmouseup = function (e) {
+            if (!_this.isAnimating) {
+                _this.onMouseUp(e);
+            }
+            ;
+        };
     }
     BezierCanvas.prototype.onMouseDown = function (e) {
         for (var _i = 0, _a = this.circles; _i < _a.length; _i++) {
@@ -69,6 +90,7 @@ var BezierCanvas = /** @class */ (function () {
             }
         }
         this.cursor = this.circles.some(function (c) { return c.isHovered; }) ? 'pointer' : 'default';
+        this.render();
     };
     BezierCanvas.prototype.onMouseUp = function (e) {
         for (var _i = 0, _a = this.circles; _i < _a.length; _i++) {
@@ -82,7 +104,6 @@ var BezierCanvas = /** @class */ (function () {
         this.renderBoard();
         this.renderCircles();
         this.connectCircles();
-        window.requestAnimationFrame(this.render.bind(this));
     };
     BezierCanvas.prototype.clearScreen = function () {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -101,11 +122,7 @@ var BezierCanvas = /** @class */ (function () {
     BezierCanvas.prototype.renderCircles = function () {
         for (var _i = 0, _a = this.circles; _i < _a.length; _i++) {
             var circle = _a[_i];
-            this.ctx.beginPath();
-            this.ctx.arc(circle.v.x, circle.v.y, circle.radius, 0, 2 * Math.PI, false);
-            this.ctx.fillStyle = circle.color;
-            this.ctx.fill();
-            this.ctx.stroke();
+            this.drawCircle(circle);
         }
     };
     BezierCanvas.prototype.connectCircles = function () {
@@ -113,9 +130,9 @@ var BezierCanvas = /** @class */ (function () {
         var secondCircle = this.circles[1];
         var thirdCircle = this.circles[2];
         var fourthCircle = this.circles[3];
-        this.drawLine(firstCircle.v, secondCircle.v, 'white', 2);
-        this.drawLine(secondCircle.v, thirdCircle.v, 'white', 2);
-        this.drawLine(thirdCircle.v, fourthCircle.v, 'white', 2);
+        this.drawLine(firstCircle.v, secondCircle.v, OUTER_LINE_COLOR, 2);
+        this.drawLine(secondCircle.v, thirdCircle.v, OUTER_LINE_COLOR, 2);
+        this.drawLine(thirdCircle.v, fourthCircle.v, OUTER_LINE_COLOR, 2);
         var prevV = null;
         var steps = 100;
         // If step is 0.01, we will have floating precision issue
@@ -129,7 +146,7 @@ var BezierCanvas = /** @class */ (function () {
             var ll2 = this.lerp(l2, l3, step);
             var ll3 = this.lerp(ll1, ll2, step);
             if (prevV) {
-                this.drawLine(prevV, ll3, 'red', 2);
+                this.drawLine(prevV, ll3, BEZIER_CURVE_COLOR, 2);
             }
             prevV = new Vector2(ll3.x, ll3.y);
         }
@@ -148,18 +165,63 @@ var BezierCanvas = /** @class */ (function () {
         this.ctx.lineWidth = lineWidth;
         this.ctx.stroke();
     };
+    BezierCanvas.prototype.drawCircle = function (circle) {
+        this.ctx.beginPath();
+        this.ctx.arc(circle.v.x, circle.v.y, circle.radius, 0, 2 * Math.PI, false);
+        this.ctx.fillStyle = circle.color;
+        this.ctx.fill();
+        this.ctx.strokeStyle = circle.color;
+        this.ctx.stroke();
+    };
+    BezierCanvas.prototype.animate = function () {
+        var _this = this;
+        if (this.intervalRef) {
+            clearInterval(this.intervalRef);
+        }
+        ;
+        this.isAnimating = true;
+        var steps = 100;
+        var t = 0;
+        this.intervalRef = setInterval(function () {
+            t += 1;
+            _this.render();
+            var step = t / steps;
+            var l1 = _this.lerp(_this.circles[0].v, _this.circles[1].v, step);
+            _this.drawCircle(new Circle(l1, 8, FIRST_LAYER_COLOR));
+            var l2 = _this.lerp(_this.circles[1].v, _this.circles[2].v, step);
+            _this.drawCircle(new Circle(l2, 8, FIRST_LAYER_COLOR));
+            var l3 = _this.lerp(_this.circles[2].v, _this.circles[3].v, step);
+            _this.drawCircle(new Circle(l3, 8, FIRST_LAYER_COLOR));
+            var ll1 = _this.lerp(l1, l2, step);
+            _this.drawCircle(new Circle(ll1, 8, SECOND_LAYER_COLOR));
+            var ll2 = _this.lerp(l2, l3, step);
+            _this.drawCircle(new Circle(ll2, 8, SECOND_LAYER_COLOR));
+            var ll3 = _this.lerp(ll1, ll2, step);
+            _this.drawCircle(new Circle(ll3, 8, SECOND_LAYER_COLOR));
+            _this.drawLine(l1, l2, FIRST_LAYER_COLOR, 2);
+            _this.drawLine(l2, l3, FIRST_LAYER_COLOR, 2);
+            _this.drawLine(ll1, ll2, SECOND_LAYER_COLOR, 2);
+            if (t === 100) {
+                clearInterval(_this.intervalRef);
+                _this.render();
+                _this.isAnimating = false;
+            }
+        }, 10);
+    };
     return BezierCanvas;
 }());
 function main() {
     var canvas = document.querySelector('canvas');
     var circles = [
-        new Circle(new Vector2(CENTER - (STEP * 4), CENTER + (STEP * 3)), RADIUS, 'red'),
-        new Circle(new Vector2(CENTER - (STEP * 4), CENTER - (STEP * 3)), RADIUS, 'yellow'),
-        new Circle(new Vector2(CENTER + (STEP * 4), CENTER - (STEP * 3)), RADIUS, 'green'),
-        new Circle(new Vector2(CENTER + (STEP * 4), CENTER + (STEP * 3)), RADIUS, 'blue')
+        new Circle(new Vector2(CENTER - (STEP * 4), CENTER + (STEP * 3)), RADIUS, '#BCE29E'),
+        new Circle(new Vector2(CENTER - (STEP * 4), CENTER - (STEP * 3)), RADIUS, '#BCE29E'),
+        new Circle(new Vector2(CENTER + (STEP * 4), CENTER - (STEP * 3)), RADIUS, '#BCE29E'),
+        new Circle(new Vector2(CENTER + (STEP * 4), CENTER + (STEP * 3)), RADIUS, '#BCE29E')
     ];
     var board = new Board(DIMENSION, STEP);
     var bezierCanvas = new BezierCanvas(canvas, board, circles);
-    window.requestAnimationFrame(bezierCanvas.render.bind(bezierCanvas));
+    bezierCanvas.render();
+    var button = document.querySelector('button');
+    button.addEventListener('click', bezierCanvas.animate.bind(bezierCanvas));
 }
 main();
