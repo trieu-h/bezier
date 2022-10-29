@@ -65,6 +65,10 @@ class BezierCanvas {
     onMouseDown(e: MouseEvent) {
         for (const circle of this.circles) {
             circle.isPressed = circle.isHovered;
+
+            if (circle.isPressed) {
+                return;
+            }
         }
     }
 
@@ -86,7 +90,6 @@ class BezierCanvas {
         }
 
         this.cursor = this.circles.some(c => c.isHovered) ? 'pointer': 'default';
-        this.render();
     }
 
     onMouseUp(e: MouseEvent) {
@@ -101,6 +104,7 @@ class BezierCanvas {
         this.renderBoard();
         this.renderCircles();
         this.connectCircles();
+        window.requestAnimationFrame(this.render.bind(this));
     }
 
     clearScreen(): void {
@@ -140,7 +144,7 @@ class BezierCanvas {
         this.drawLine(secondCircle.v, thirdCircle.v, 'white', 2);
         this.drawLine(thirdCircle.v, fourthCircle.v, 'white', 2);
 
-        let prevV = null ;
+        let prevV = null;
         const steps = 100;
 
          // If step is 0.01, we will have floating precision issue
@@ -190,7 +194,7 @@ function main(): void {
     const board = new Board(DIMENSION, STEP);
     const bezierCanvas = new BezierCanvas(canvas, board, circles);
 
-    bezierCanvas.render();
+    window.requestAnimationFrame(bezierCanvas.render.bind(bezierCanvas));
 }
 
 main();

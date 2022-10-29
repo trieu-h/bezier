@@ -49,6 +49,9 @@ var BezierCanvas = /** @class */ (function () {
         for (var _i = 0, _a = this.circles; _i < _a.length; _i++) {
             var circle = _a[_i];
             circle.isPressed = circle.isHovered;
+            if (circle.isPressed) {
+                return;
+            }
         }
     };
     BezierCanvas.prototype.onMouseMove = function (e) {
@@ -66,7 +69,6 @@ var BezierCanvas = /** @class */ (function () {
             }
         }
         this.cursor = this.circles.some(function (c) { return c.isHovered; }) ? 'pointer' : 'default';
-        this.render();
     };
     BezierCanvas.prototype.onMouseUp = function (e) {
         for (var _i = 0, _a = this.circles; _i < _a.length; _i++) {
@@ -80,6 +82,7 @@ var BezierCanvas = /** @class */ (function () {
         this.renderBoard();
         this.renderCircles();
         this.connectCircles();
+        window.requestAnimationFrame(this.render.bind(this));
     };
     BezierCanvas.prototype.clearScreen = function () {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -157,6 +160,6 @@ function main() {
     ];
     var board = new Board(DIMENSION, STEP);
     var bezierCanvas = new BezierCanvas(canvas, board, circles);
-    bezierCanvas.render();
+    window.requestAnimationFrame(bezierCanvas.render.bind(bezierCanvas));
 }
 main();
