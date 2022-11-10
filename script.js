@@ -53,12 +53,18 @@ var Drawer = /** @class */ (function () {
         this.ctx.stroke();
     };
     Drawer.prototype.drawCircle = function (circle) {
+        this.ctx.save();
         this.ctx.beginPath();
+        if (circle.isPressed) {
+            this.ctx.shadowBlur = 10;
+            this.ctx.shadowColor = "orange";
+        }
         this.ctx.arc(circle.center.x, circle.center.y, circle.radius, 0, 2 * Math.PI, false);
         this.ctx.fillStyle = circle.color;
         this.ctx.fill();
         this.ctx.strokeStyle = circle.color;
         this.ctx.stroke();
+        this.ctx.restore();
     };
     return Drawer;
 }());
