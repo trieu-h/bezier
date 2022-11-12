@@ -1,9 +1,9 @@
-const OFFSET = 20;
+const PADDING = 40;
 const DIMENSION = 800;
 const STEP = 40;
 const RADIUS = 10;
 const LINE_WIDTH = 5;
-const CENTER = DIMENSION/2;
+const CENTER = (DIMENSION + PADDING * 2)/2;
 const GRID_COLOR = '#d3d3d3';
 const BEZIER_CURVE_COLOR = '#FDFDBD';
 const POINT_COLOR = '#BCE29E';
@@ -21,33 +21,56 @@ class Vec2 {
         this.x = x;
         this.y = y;
     }
+
+    clamp(min: Vec2, max: Vec2): Vec2 {
+        let x = this.x;
+        let y = this.y;
+
+        if (x < min.x) x = min.x;
+        if (x > max.x) x = max.x;
+        if (y < min.y) y = min.y;
+        if (y > max.y) y = max.y;
+
+        return new Vec2(x, y);
+    }
+
+    isInside(begin: Vec2, end: Vec2): boolean {
+        return (begin.x <= this.x && this.x <= end.x) && (begin.y <= this.y && this.y <= end.y);
+    }
+
+    static fromMouse(canvas: HTMLCanvasElement, e: MouseEvent): Vec2 {
+        const {left, top} = canvas.getBoundingClientRect();
+        return new Vec2(e.clientX - left, e.clientY - top);
+    }
 }
 
 class Circle {
-    center: Vec2;
+    position: Vec2;
     radius: number;
     color: string;
     isPressed: boolean = false;
     isHovered: boolean = false;
 
-    constructor(center: Vec2, radius: number, color: string) {
-        this.center = center;
+    constructor(position: Vec2, radius: number, color: string) {
+        this.position = position;
         this.radius = radius;
         this.color = color;
     }
 
-    update(center: Vec2): void {
-        this.center = center;
+    update(position: Vec2): void {
+        this.position = position;
     }
 }
 
 class Board {
     dimension: number;
     step: number;
+    padding: number;
 
-    constructor(dimension: number, step: number) {
+    constructor(dimension: number, step: number, padding: number) {
         this.dimension = dimension;
         this.step = step;
+        this.padding = padding;
     }
 }
 
@@ -74,7 +97,7 @@ class Drawer {
         this.ctx.shadowBlur = 10;
         this.ctx.shadowColor = "orange";
        }
-       this.ctx.arc(circle.center.x, circle.center.y, circle.radius, 0, 2 * Math.PI, false);
+       this.ctx.arc(circle.position.x, circle.position.y, circle.radius, 0, 2 * Math.PI, false);
        this.ctx.fillStyle = circle.color;
        this.ctx.fill();
        this.ctx.strokeStyle = circle.color;
@@ -93,6 +116,8 @@ class BezierCanvas {
     private step = 0;
     private total = 200;
     private drawer: Drawer;
+    private minPos: Vec2;
+    private maxPos: Vec2;
 
     constructor(canvas: HTMLCanvasElement, board: Board, circles: Circle[]) {
         this.board = board;
@@ -101,10 +126,12 @@ class BezierCanvas {
         this.cursor = 'default';
         this.ctx = this.canvas.getContext("2d")!;
         this.drawer = new Drawer(this.ctx);
-        this.canvas.width = this.canvas.height = this.board.dimension;
+        this.canvas.width = this.canvas.height = this.board.dimension + this.board.padding;
         this.canvas.onmousedown = (e) => this.onMouseDown(e);
         this.canvas.onmousemove = (e) => this.onMouseMove(e);
         this.canvas.onmouseup = (e) => this.onMouseUp(e);
+        this.minPos = new Vec2(this.board.padding, this.board.padding);
+        this.maxPos = new Vec2(this.board.dimension, this.board.dimension);
     }
 
     onMouseDown(e: MouseEvent): void {
@@ -116,55 +143,50 @@ class BezierCanvas {
             }
         }
 
-        let minDist = Infinity;
-        let circleWithSmallestDistance = null;
-        const mouseVec2 = this.mouseCoordToVec2(e);
+        const mousePos = Vec2.fromMouse(canvas, e);
 
-        for (const circle of this.circles) {
-            const dist = this.dist(circle.center, mouseVec2);
-            if (dist < minDist) {
-                minDist = dist;
-                circleWithSmallestDistance = circle;
+        if (mousePos.isInside(this.minPos, this.maxPos)) {
+            let minDist = Infinity;
+            let circleWithSmallestDistance = null;
+
+            for (const circle of this.circles) {
+                const dist = this.dist(circle.position, mousePos);
+                if (dist < minDist) {
+                    minDist = dist;
+                    circleWithSmallestDistance = circle;
+                }
             }
-        }
 
-        circleWithSmallestDistance!.update(mouseVec2);
+            circleWithSmallestDistance!.update(mousePos);
+        }
     }
 
     onMouseMove(e: MouseEvent): void {
-        const mouseVec2 = this.mouseCoordToVec2(e);
+        const mousePos = Vec2.fromMouse(canvas, e);
 
         for (const circle of this.circles) {
-            const dist = this.dist(mouseVec2, circle.center);
-            const insideCircle = dist < RADIUS;
+            const dist = this.dist(mousePos, circle.position);
+            const insideCircle = dist < circle.radius;
 
             circle.isHovered = insideCircle;
 
             if (circle.isPressed) {
-                circle.update(mouseVec2);
+                circle.update(mousePos.clamp(this.minPos, this.maxPos));
             }
         }
 
         this.cursor = this.circles.some(c => c.isHovered) ? 'pointer': 'default';
     }
 
-    onMouseUp(e: MouseEvent): void {
+    onMouseUp(_e: MouseEvent): void {
         for (const circle of this.circles) {
             circle.isPressed = false;
         }
     }
 
-    mouseCoordToVec2(e: MouseEvent): Vec2 {
-        const rect = this.canvas.getBoundingClientRect();
-        return new Vec2(e.clientX - rect.left, e.clientY - rect.top);
-    }
-
     renderBoard(): void {
-        this.clearScreen();
-        this.renderCursor();
         this.renderGrid();
         this.renderCircles();
-        this.connectCircles();
     }
 
     loop(): void {
@@ -175,21 +197,20 @@ class BezierCanvas {
         window.requestAnimationFrame(this.loop.bind(this));
     }
 
-    clearScreen(): void {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    }
-
-    renderCursor(): void {
-        this.canvas.style.cursor = this.cursor;
-    }
-
     renderGrid(): void {
-        for (let i = 0; i <= this.board.dimension; i+= this.board.step) {
-            this.drawer.drawLine(new Vec2(i, 0), new Vec2(i, this.board.dimension), GRID_COLOR);
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.canvas.style.cursor = this.cursor;
+
+        /* Have to take account the padding when drawing */
+
+        // Vertical lines
+        for (let i = this.board.padding; i <= this.board.dimension; i+= this.board.step) {
+            this.drawer.drawLine(new Vec2(i, this.board.padding), new Vec2(i, this.board.dimension), GRID_COLOR);
         }
 
-        for (let i = 0; i <= this.board.dimension; i+= this.board.step) {
-            this.drawer.drawLine(new Vec2(0, i), new Vec2(this.board.dimension, i), GRID_COLOR);
+        // Horizontal lines
+        for (let i = this.board.padding; i <= this.board.dimension; i+= this.board.step) {
+            this.drawer.drawLine(new Vec2(this.board.padding, i), new Vec2(this.board.dimension, i), GRID_COLOR);
         }
     }
 
@@ -197,12 +218,10 @@ class BezierCanvas {
         for (const circle of this.circles) {
             this.drawer.drawCircle(circle);
         }
-    }
 
-    connectCircles(): void {
-        this.drawer.drawLine(this.circles[0].center, this.circles[1].center, CONNECTING_POINT_COLOR, 2);
-        this.drawer.drawLine(this.circles[1].center, this.circles[2].center, CONNECTING_POINT_COLOR, 2);
-        this.drawer.drawLine(this.circles[2].center, this.circles[3].center, CONNECTING_POINT_COLOR, 2);
+        this.drawer.drawLine(this.circles[0].position, this.circles[1].position, CONNECTING_POINT_COLOR, 2);
+        this.drawer.drawLine(this.circles[1].position, this.circles[2].position, CONNECTING_POINT_COLOR, 2);
+        this.drawer.drawLine(this.circles[2].position, this.circles[3].position, CONNECTING_POINT_COLOR, 2);
 
         let prevV = null;
         const steps = 100;
@@ -212,9 +231,9 @@ class BezierCanvas {
         for (let t = 0; t <= steps; t += 1) {
             const step = t/steps;
 
-            const l1 = this.lerp(this.circles[0].center, this.circles[1].center, step);
-            const l2 = this.lerp(this.circles[1].center, this.circles[2].center, step);
-            const l3 = this.lerp(this.circles[2].center, this.circles[3].center, step);
+            const l1 = this.lerp(this.circles[0].position, this.circles[1].position, step);
+            const l2 = this.lerp(this.circles[1].position, this.circles[2].position, step);
+            const l3 = this.lerp(this.circles[2].position, this.circles[3].position, step);
 
             const ll1 = this.lerp(l1, l2, step);
             const ll2 = this.lerp(l2, l3, step);
@@ -243,13 +262,13 @@ class BezierCanvas {
     animate(): void {
        const t = this.step / this.total;
 
-       const l1 = this.lerp(this.circles[0].center, this.circles[1].center, t);
+       const l1 = this.lerp(this.circles[0].position, this.circles[1].position, t);
        this.drawer.drawCircle(new Circle(l1, 8, FIRST_LAYER_COLOR));
 
-       const l2 = this.lerp(this.circles[1].center, this.circles[2].center, t);
+       const l2 = this.lerp(this.circles[1].position, this.circles[2].position, t);
        this.drawer.drawCircle(new Circle(l2, 8, FIRST_LAYER_COLOR));
 
-       const l3 = this.lerp(this.circles[2].center, this.circles[3].center, t);
+       const l3 = this.lerp(this.circles[2].position, this.circles[3].position, t);
        this.drawer.drawCircle(new Circle(l3, 8, FIRST_LAYER_COLOR));
 
        const ll1 = this.lerp(l1, l2, t);
@@ -278,15 +297,6 @@ class BezierCanvas {
     triggerAnimation(): void {
         this.isAnimating = true;
     }
-
-    drawCircle(circle: Circle): void {
-       this.ctx.beginPath();
-       this.ctx.arc(circle.center.x, circle.center.y, circle.radius, 0, 2 * Math.PI, false);
-       this.ctx.fillStyle = circle.color;
-       this.ctx.fill();
-       this.ctx.strokeStyle = circle.color;
-       this.ctx.stroke();
-    }
 }
 
 function main(): void {
@@ -296,7 +306,7 @@ function main(): void {
         new Circle(new Vec2(CENTER + (STEP * 4), CENTER - (STEP * 3)), RADIUS, POINT_COLOR),
         new Circle(new Vec2(CENTER + (STEP * 4), CENTER + (STEP * 3)), RADIUS, POINT_COLOR)
     ];
-    const board = new Board(DIMENSION, STEP);
+    const board = new Board(DIMENSION, STEP, PADDING);
     const bezierCanvas = new BezierCanvas(canvas, board, circles);
 
     window.requestAnimationFrame(bezierCanvas.loop.bind(bezierCanvas));
