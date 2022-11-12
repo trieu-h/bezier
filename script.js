@@ -81,24 +81,9 @@ var BezierCanvas = /** @class */ (function () {
         this.ctx = this.canvas.getContext("2d");
         this.drawer = new Drawer(this.ctx);
         this.canvas.width = this.canvas.height = this.board.dimension;
-        this.canvas.onmousedown = function (e) {
-            if (!_this.isAnimating) {
-                _this.onMouseDown(e);
-            }
-            ;
-        };
-        this.canvas.onmousemove = function (e) {
-            if (!_this.isAnimating) {
-                _this.onMouseMove(e);
-            }
-            ;
-        };
-        this.canvas.onmouseup = function (e) {
-            if (!_this.isAnimating) {
-                _this.onMouseUp(e);
-            }
-            ;
-        };
+        this.canvas.onmousedown = function (e) { return _this.onMouseDown(e); };
+        this.canvas.onmousemove = function (e) { return _this.onMouseMove(e); };
+        this.canvas.onmouseup = function (e) { return _this.onMouseUp(e); };
     }
     BezierCanvas.prototype.onMouseDown = function (e) {
         for (var _i = 0, _a = this.circles; _i < _a.length; _i++) {

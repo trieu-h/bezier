@@ -102,15 +102,9 @@ class BezierCanvas {
         this.ctx = this.canvas.getContext("2d")!;
         this.drawer = new Drawer(this.ctx);
         this.canvas.width = this.canvas.height = this.board.dimension;
-        this.canvas.onmousedown = (e) => {
-            if (!this.isAnimating) { this.onMouseDown(e) };
-        };
-        this.canvas.onmousemove = (e) => {
-            if (!this.isAnimating) { this.onMouseMove(e) };
-        };
-        this.canvas.onmouseup = (e) => {
-            if (!this.isAnimating) { this.onMouseUp(e) };
-        };
+        this.canvas.onmousedown = (e) => this.onMouseDown(e);
+        this.canvas.onmousemove = (e) => this.onMouseMove(e);
+        this.canvas.onmouseup = (e) => this.onMouseUp(e);
     }
 
     onMouseDown(e: MouseEvent): void {
