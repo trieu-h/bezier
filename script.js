@@ -30,6 +30,11 @@ var Vec2 = /** @class */ (function () {
             y = max.y;
         return new Vec2(x, y);
     };
+    Vec2.prototype.dist = function (that) {
+        var dx = this.x - that.x;
+        var dy = this.y - that.y;
+        return Math.sqrt(Math.pow(dx, 2) + (Math.pow(dy, 2)));
+    };
     Vec2.prototype.isInside = function (begin, end) {
         return (begin.x <= this.x && this.x <= end.x) && (begin.y <= this.y && this.y <= end.y);
     };
@@ -37,18 +42,23 @@ var Vec2 = /** @class */ (function () {
         var _a = canvas.getBoundingClientRect(), left = _a.left, top = _a.top;
         return new Vec2(e.clientX - left, e.clientY - top);
     };
+    Vec2.lerp = function (v1, v2, t) {
+        var x = v1.x + (v2.x - v1.x) * t;
+        var y = v1.y + (v2.y - v1.y) * t;
+        return new Vec2(x, y);
+    };
     return Vec2;
 }());
 var Circle = /** @class */ (function () {
     function Circle(position, radius, color) {
         this.isPressed = false;
         this.isHovered = false;
-        this.position = position;
+        this.pos = position;
         this.radius = radius;
         this.color = color;
     }
     Circle.prototype.update = function (position) {
-        this.position = position;
+        this.pos = position;
     };
     return Circle;
 }());
@@ -80,7 +90,7 @@ var Drawer = /** @class */ (function () {
             this.ctx.shadowBlur = 10;
             this.ctx.shadowColor = "orange";
         }
-        this.ctx.arc(circle.position.x, circle.position.y, circle.radius, 0, 2 * Math.PI, false);
+        this.ctx.arc(circle.pos.x, circle.pos.y, circle.radius, 0, 2 * Math.PI, false);
         this.ctx.fillStyle = circle.color;
         this.ctx.fill();
         this.ctx.strokeStyle = circle.color;
@@ -122,7 +132,7 @@ var BezierCanvas = /** @class */ (function () {
             var circleWithSmallestDistance = null;
             for (var _b = 0, _c = this.circles; _b < _c.length; _b++) {
                 var circle = _c[_b];
-                var dist = this.dist(circle.position, mousePos);
+                var dist = circle.pos.dist(mousePos);
                 if (dist < minDist) {
                     minDist = dist;
                     circleWithSmallestDistance = circle;
@@ -135,7 +145,7 @@ var BezierCanvas = /** @class */ (function () {
         var mousePos = Vec2.fromMouse(canvas, e);
         for (var _i = 0, _a = this.circles; _i < _a.length; _i++) {
             var circle = _a[_i];
-            var dist = this.dist(mousePos, circle.position);
+            var dist = mousePos.dist(circle.pos);
             var insideCircle = dist < circle.radius;
             circle.isHovered = insideCircle;
             if (circle.isPressed) {
@@ -179,50 +189,40 @@ var BezierCanvas = /** @class */ (function () {
             var circle = _a[_i];
             this.drawer.drawCircle(circle);
         }
-        this.drawer.drawLine(this.circles[0].position, this.circles[1].position, CONNECTING_POINT_COLOR, 2);
-        this.drawer.drawLine(this.circles[1].position, this.circles[2].position, CONNECTING_POINT_COLOR, 2);
-        this.drawer.drawLine(this.circles[2].position, this.circles[3].position, CONNECTING_POINT_COLOR, 2);
+        this.drawer.drawLine(this.circles[0].pos, this.circles[1].pos, CONNECTING_POINT_COLOR, 2);
+        this.drawer.drawLine(this.circles[1].pos, this.circles[2].pos, CONNECTING_POINT_COLOR, 2);
+        this.drawer.drawLine(this.circles[2].pos, this.circles[3].pos, CONNECTING_POINT_COLOR, 2);
         var prevV = null;
         var steps = 100;
         // If step is 0.01, we will have floating precision issue
         // Do t/steps like this will prevent it
         for (var t = 0; t <= steps; t += 1) {
             var step = t / steps;
-            var l1 = this.lerp(this.circles[0].position, this.circles[1].position, step);
-            var l2 = this.lerp(this.circles[1].position, this.circles[2].position, step);
-            var l3 = this.lerp(this.circles[2].position, this.circles[3].position, step);
-            var ll1 = this.lerp(l1, l2, step);
-            var ll2 = this.lerp(l2, l3, step);
-            var ll3 = this.lerp(ll1, ll2, step);
+            var l1 = Vec2.lerp(this.circles[0].pos, this.circles[1].pos, step);
+            var l2 = Vec2.lerp(this.circles[1].pos, this.circles[2].pos, step);
+            var l3 = Vec2.lerp(this.circles[2].pos, this.circles[3].pos, step);
+            var ll1 = Vec2.lerp(l1, l2, step);
+            var ll2 = Vec2.lerp(l2, l3, step);
+            var ll3 = Vec2.lerp(ll1, ll2, step);
             if (prevV) {
                 this.drawer.drawLine(prevV, ll3, BEZIER_CURVE_COLOR, 2);
             }
             prevV = new Vec2(ll3.x, ll3.y);
         }
     };
-    BezierCanvas.prototype.lerp = function (v1, v2, t) {
-        var x = v1.x + (v2.x - v1.x) * t;
-        var y = v1.y + (v2.y - v1.y) * t;
-        return new Vec2(x, y);
-    };
-    BezierCanvas.prototype.dist = function (v1, v2) {
-        var dx = v1.x - v2.x;
-        var dy = v1.y - v2.y;
-        return Math.sqrt(Math.pow(dx, 2) + (Math.pow(dy, 2)));
-    };
     BezierCanvas.prototype.animate = function () {
         var t = this.step / this.total;
-        var l1 = this.lerp(this.circles[0].position, this.circles[1].position, t);
+        var l1 = Vec2.lerp(this.circles[0].pos, this.circles[1].pos, t);
         this.drawer.drawCircle(new Circle(l1, 8, FIRST_LAYER_COLOR));
-        var l2 = this.lerp(this.circles[1].position, this.circles[2].position, t);
+        var l2 = Vec2.lerp(this.circles[1].pos, this.circles[2].pos, t);
         this.drawer.drawCircle(new Circle(l2, 8, FIRST_LAYER_COLOR));
-        var l3 = this.lerp(this.circles[2].position, this.circles[3].position, t);
+        var l3 = Vec2.lerp(this.circles[2].pos, this.circles[3].pos, t);
         this.drawer.drawCircle(new Circle(l3, 8, FIRST_LAYER_COLOR));
-        var ll1 = this.lerp(l1, l2, t);
+        var ll1 = Vec2.lerp(l1, l2, t);
         this.drawer.drawCircle(new Circle(ll1, 8, SECOND_LAYER_COLOR));
-        var ll2 = this.lerp(l2, l3, t);
+        var ll2 = Vec2.lerp(l2, l3, t);
         this.drawer.drawCircle(new Circle(ll2, 8, SECOND_LAYER_COLOR));
-        var ll3 = this.lerp(ll1, ll2, t);
+        var ll3 = Vec2.lerp(ll1, ll2, t);
         this.drawer.drawCircle(new Circle(ll3, 8, SECOND_LAYER_COLOR));
         this.drawer.drawLine(l1, l2, FIRST_LAYER_COLOR, 2);
         this.drawer.drawLine(l2, l3, FIRST_LAYER_COLOR, 2);
@@ -240,8 +240,8 @@ var BezierCanvas = /** @class */ (function () {
 }());
 function main() {
     var circles = [
-        new Circle(new Vec2(CENTER - (STEP * 4), CENTER + (STEP * 3)), RADIUS, POINT_COLOR),
-        new Circle(new Vec2(CENTER - (STEP * 4), CENTER - (STEP * 3)), RADIUS, POINT_COLOR),
+        new Circle(new Vec2(CENTER - (STEP * 5), CENTER + (STEP * 3)), RADIUS, POINT_COLOR),
+        new Circle(new Vec2(CENTER - (STEP * 5), CENTER - (STEP * 3)), RADIUS, POINT_COLOR),
         new Circle(new Vec2(CENTER + (STEP * 4), CENTER - (STEP * 3)), RADIUS, POINT_COLOR),
         new Circle(new Vec2(CENTER + (STEP * 4), CENTER + (STEP * 3)), RADIUS, POINT_COLOR)
     ];

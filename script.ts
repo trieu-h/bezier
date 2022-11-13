@@ -34,6 +34,12 @@ class Vec2 {
         return new Vec2(x, y);
     }
 
+    dist(that: Vec2): number {
+       const dx = this.x - that.x;
+       const dy = this.y - that.y;
+       return Math.sqrt(Math.pow(dx, 2) + (Math.pow(dy, 2)));
+    }
+
     isInside(begin: Vec2, end: Vec2): boolean {
         return (begin.x <= this.x && this.x <= end.x) && (begin.y <= this.y && this.y <= end.y);
     }
@@ -42,23 +48,29 @@ class Vec2 {
         const {left, top} = canvas.getBoundingClientRect();
         return new Vec2(e.clientX - left, e.clientY - top);
     }
+
+    static lerp(v1: Vec2, v2: Vec2, t: number): Vec2 {
+       const x = v1.x + (v2.x - v1.x) * t;
+       const y = v1.y + (v2.y - v1.y) * t;
+       return new Vec2(x, y);
+    }
 }
 
 class Circle {
-    position: Vec2;
+    pos: Vec2;
     radius: number;
     color: string;
     isPressed: boolean = false;
     isHovered: boolean = false;
 
     constructor(position: Vec2, radius: number, color: string) {
-        this.position = position;
+        this.pos = position;
         this.radius = radius;
         this.color = color;
     }
 
     update(position: Vec2): void {
-        this.position = position;
+        this.pos = position;
     }
 }
 
@@ -97,7 +109,7 @@ class Drawer {
         this.ctx.shadowBlur = 10;
         this.ctx.shadowColor = "orange";
        }
-       this.ctx.arc(circle.position.x, circle.position.y, circle.radius, 0, 2 * Math.PI, false);
+       this.ctx.arc(circle.pos.x, circle.pos.y, circle.radius, 0, 2 * Math.PI, false);
        this.ctx.fillStyle = circle.color;
        this.ctx.fill();
        this.ctx.strokeStyle = circle.color;
@@ -150,7 +162,7 @@ class BezierCanvas {
             let circleWithSmallestDistance = null;
 
             for (const circle of this.circles) {
-                const dist = this.dist(circle.position, mousePos);
+                const dist = circle.pos.dist(mousePos);
                 if (dist < minDist) {
                     minDist = dist;
                     circleWithSmallestDistance = circle;
@@ -165,7 +177,7 @@ class BezierCanvas {
         const mousePos = Vec2.fromMouse(canvas, e);
 
         for (const circle of this.circles) {
-            const dist = this.dist(mousePos, circle.position);
+            const dist = mousePos.dist(circle.pos);
             const insideCircle = dist < circle.radius;
 
             circle.isHovered = insideCircle;
@@ -219,9 +231,9 @@ class BezierCanvas {
             this.drawer.drawCircle(circle);
         }
 
-        this.drawer.drawLine(this.circles[0].position, this.circles[1].position, CONNECTING_POINT_COLOR, 2);
-        this.drawer.drawLine(this.circles[1].position, this.circles[2].position, CONNECTING_POINT_COLOR, 2);
-        this.drawer.drawLine(this.circles[2].position, this.circles[3].position, CONNECTING_POINT_COLOR, 2);
+        this.drawer.drawLine(this.circles[0].pos, this.circles[1].pos, CONNECTING_POINT_COLOR, 2);
+        this.drawer.drawLine(this.circles[1].pos, this.circles[2].pos, CONNECTING_POINT_COLOR, 2);
+        this.drawer.drawLine(this.circles[2].pos, this.circles[3].pos, CONNECTING_POINT_COLOR, 2);
 
         let prevV = null;
         const steps = 100;
@@ -231,13 +243,13 @@ class BezierCanvas {
         for (let t = 0; t <= steps; t += 1) {
             const step = t/steps;
 
-            const l1 = this.lerp(this.circles[0].position, this.circles[1].position, step);
-            const l2 = this.lerp(this.circles[1].position, this.circles[2].position, step);
-            const l3 = this.lerp(this.circles[2].position, this.circles[3].position, step);
+            const l1 = Vec2.lerp(this.circles[0].pos, this.circles[1].pos, step);
+            const l2 = Vec2.lerp(this.circles[1].pos, this.circles[2].pos, step);
+            const l3 = Vec2.lerp(this.circles[2].pos, this.circles[3].pos, step);
 
-            const ll1 = this.lerp(l1, l2, step);
-            const ll2 = this.lerp(l2, l3, step);
-            const ll3 = this.lerp(ll1, ll2, step);
+            const ll1 = Vec2.lerp(l1, l2, step);
+            const ll2 = Vec2.lerp(l2, l3, step);
+            const ll3 = Vec2.lerp(ll1, ll2, step);
 
             if (prevV) {
                 this.drawer.drawLine(prevV, ll3, BEZIER_CURVE_COLOR, 2);
@@ -247,37 +259,25 @@ class BezierCanvas {
         }
     }
 
-    lerp(v1: Vec2, v2: Vec2, t: number): Vec2 {
-       const x = v1.x + (v2.x - v1.x) * t;
-       const y = v1.y + (v2.y - v1.y) * t;
-       return new Vec2(x, y);
-    }
-
-    dist(v1: Vec2, v2: Vec2): number {
-       const dx = v1.x - v2.x;
-       const dy = v1.y - v2.y;
-       return Math.sqrt(Math.pow(dx, 2) + (Math.pow(dy, 2)));
-    }
-
     animate(): void {
        const t = this.step / this.total;
 
-       const l1 = this.lerp(this.circles[0].position, this.circles[1].position, t);
+       const l1 = Vec2.lerp(this.circles[0].pos, this.circles[1].pos, t);
        this.drawer.drawCircle(new Circle(l1, 8, FIRST_LAYER_COLOR));
 
-       const l2 = this.lerp(this.circles[1].position, this.circles[2].position, t);
+       const l2 = Vec2.lerp(this.circles[1].pos, this.circles[2].pos, t);
        this.drawer.drawCircle(new Circle(l2, 8, FIRST_LAYER_COLOR));
 
-       const l3 = this.lerp(this.circles[2].position, this.circles[3].position, t);
+       const l3 = Vec2.lerp(this.circles[2].pos, this.circles[3].pos, t);
        this.drawer.drawCircle(new Circle(l3, 8, FIRST_LAYER_COLOR));
 
-       const ll1 = this.lerp(l1, l2, t);
+       const ll1 = Vec2.lerp(l1, l2, t);
        this.drawer.drawCircle(new Circle(ll1, 8, SECOND_LAYER_COLOR));
 
-       const ll2 = this.lerp(l2, l3, t);
+       const ll2 = Vec2.lerp(l2, l3, t);
        this.drawer.drawCircle(new Circle(ll2, 8, SECOND_LAYER_COLOR));
 
-       const ll3 = this.lerp(ll1, ll2, t);
+       const ll3 = Vec2.lerp(ll1, ll2, t);
        this.drawer.drawCircle(new Circle(ll3, 8, SECOND_LAYER_COLOR));
 
        this.drawer.drawLine(l1, l2, FIRST_LAYER_COLOR, 2);
@@ -301,8 +301,8 @@ class BezierCanvas {
 
 function main(): void {
     const circles = [
-        new Circle(new Vec2(CENTER - (STEP * 4), CENTER + (STEP * 3)), RADIUS, POINT_COLOR),
-        new Circle(new Vec2(CENTER - (STEP * 4), CENTER - (STEP * 3)), RADIUS, POINT_COLOR),
+        new Circle(new Vec2(CENTER - (STEP * 5), CENTER + (STEP * 3)), RADIUS, POINT_COLOR),
+        new Circle(new Vec2(CENTER - (STEP * 5), CENTER - (STEP * 3)), RADIUS, POINT_COLOR),
         new Circle(new Vec2(CENTER + (STEP * 4), CENTER - (STEP * 3)), RADIUS, POINT_COLOR),
         new Circle(new Vec2(CENTER + (STEP * 4), CENTER + (STEP * 3)), RADIUS, POINT_COLOR)
     ];
