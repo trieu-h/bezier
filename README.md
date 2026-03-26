@@ -1,9 +1,9 @@
 ## About
-Basically a visualizer for Bezier Curve using **De Casteljau's Algorithm**
+A visualizer for Bezier Curve using **De Casteljau's Algorithm**
 
 ![demo](demo.gif)
 
-Inspired by [this video] by Freya Holmer(https://www.youtube.com/watch?v=aVwxzDHniEw&ab_channel=FreyaHolm%C3%A9r)
+Inspired by [this video](https://www.youtube.com/watch?v=aVwxzDHniEw&ab_channel=FreyaHolm%C3%A9r) by Freya Holmer
 
 ## Build
 ```console
