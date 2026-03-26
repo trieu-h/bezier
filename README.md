@@ -1,4 +1,5 @@
-Demonstration of **De Casteljau's Algorithm** to construct a **Cubic Bezier Curve**
+## About
+Basically a visualizer for Bezier Curve using **De Casteljau's Algorithm**
 
 ![demo](demo.gif)
 
@@ -11,4 +12,5 @@ npm run dev
 open index.html
 ```
 
-[Live demo](https://trieu-h.github.io/bezier/)
+## Live demo
+[Try it out](https://trieu-h.github.io/bezier/)
