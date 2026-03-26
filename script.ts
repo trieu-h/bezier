@@ -1,9 +1,11 @@
-const PADDING = 40;
-const DIMENSION = 800;
+const GRID_HEIGHT = 600;
+const GRID_WIDTH = 600;
+const GRID_COLS = 20;
+const GRID_ROWS = 20;
 const STEP = 40;
 const RADIUS = 10;
 const LINE_WIDTH = 5;
-const CENTER = (DIMENSION + PADDING * 2)/2;
+const CENTER = GRID_WIDTH/2;
 const GRID_COLOR = '#d3d3d3';
 const BEZIER_CURVE_COLOR = '#FDFDBD';
 const POINT_COLOR = '#BCE29E';
@@ -11,306 +13,249 @@ const CONNECTING_POINT_COLOR = '#BCCEF8';
 const FIRST_LAYER_COLOR = '#FF8DC7';
 const SECOND_LAYER_COLOR = '#C47AFF';
 const canvas = document.querySelector('canvas')!;
-const animateButton = document.querySelector('button')!;
+canvas.width = GRID_WIDTH;
+canvas.height = GRID_HEIGHT;
+const ctx = canvas.getContext("2d")!;
+let showAnimation = true;
 
 class Vec2 {
-    x: number;
-    y: number;
+  dist(that: Vec2): number {
+    const dx = this.x - that.x;
+    const dy = this.y - that.y;
+    return Math.sqrt(Math.pow(dx, 2) + (Math.pow(dy, 2)));
+  }
 
-    constructor(x: number, y: number) {
-        this.x = x;
-        this.y = y;
-    }
+  clamp(min: Vec2, max: Vec2): Vec2 {
+      let x = this.x;
+      let y = this.y;
 
-    clamp(min: Vec2, max: Vec2): Vec2 {
-        let x = this.x;
-        let y = this.y;
+      if (x < min.x) x = min.x;
+      if (x > max.x) x = max.x;
+      if (y < min.y) y = min.y;
+      if (y > max.y) y = max.y;
 
-        if (x < min.x) x = min.x;
-        if (x > max.x) x = max.x;
-        if (y < min.y) y = min.y;
-        if (y > max.y) y = max.y;
-
-        return new Vec2(x, y);
-    }
-
-    dist(that: Vec2): number {
-       const dx = this.x - that.x;
-       const dy = this.y - that.y;
-       return Math.sqrt(Math.pow(dx, 2) + (Math.pow(dy, 2)));
-    }
-
-    isInside(begin: Vec2, end: Vec2): boolean {
-        return (begin.x <= this.x && this.x <= end.x) && (begin.y <= this.y && this.y <= end.y);
-    }
-
-    static fromMouse(canvas: HTMLCanvasElement, e: MouseEvent): Vec2 {
-        const {left, top} = canvas.getBoundingClientRect();
-        return new Vec2(e.clientX - left, e.clientY - top);
-    }
-
-    static lerp(v1: Vec2, v2: Vec2, t: number): Vec2 {
-       const x = v1.x + (v2.x - v1.x) * t;
-       const y = v1.y + (v2.y - v1.y) * t;
-       return new Vec2(x, y);
-    }
+      return new Vec2(x, y);
+  }
+  constructor(public x: number, public y: number){}
 }
 
-class Circle {
-    pos: Vec2;
-    radius: number;
-    color: string;
-    isPressed: boolean = false;
-    isHovered: boolean = false;
+class Point {
+  isPressed: boolean = false;
+  isHovered: boolean = false;
 
-    constructor(position: Vec2, radius: number, color: string) {
-        this.pos = position;
-        this.radius = radius;
-        this.color = color;
-    }
-
-    update(position: Vec2): void {
-        this.pos = position;
-    }
+  constructor(public pos: Vec2){}
 }
 
-class Board {
-    dimension: number;
-    step: number;
-    padding: number;
-
-    constructor(dimension: number, step: number, padding: number) {
-        this.dimension = dimension;
-        this.step = step;
-        this.padding = padding;
-    }
+function lerp(v1: Vec2, v2: Vec2, t: number): Vec2 {
+   const x = v1.x + (v2.x - v1.x) * t;
+   const y = v1.y + (v2.y - v1.y) * t;
+   return new Vec2(x, y);
 }
 
-class Drawer {
-    private ctx: CanvasRenderingContext2D;
-
-    constructor(ctx: CanvasRenderingContext2D) {
-        this.ctx = ctx;
-    }
-
-    drawLine(originV: Vec2, destV: Vec2, color: string, lineWidth = 1): void {
-       this.ctx.beginPath();
-       this.ctx.moveTo(originV.x, originV.y);
-       this.ctx.lineTo(destV.x, destV.y);
-       this.ctx.strokeStyle = color;
-       this.ctx.lineWidth = lineWidth;
-       this.ctx.stroke();
-    }
-
-    drawCircle(circle: Circle): void {
-       this.ctx.save();
-       this.ctx.beginPath();
-       if (circle.isPressed) {
-        this.ctx.shadowBlur = 10;
-        this.ctx.shadowColor = "orange";
-       }
-       this.ctx.arc(circle.pos.x, circle.pos.y, circle.radius, 0, 2 * Math.PI, false);
-       this.ctx.fillStyle = circle.color;
-       this.ctx.fill();
-       this.ctx.strokeStyle = circle.color;
-       this.ctx.stroke();
-       this.ctx.restore();
-    }
+function drawLine(ctx: CanvasRenderingContext2D, startPos: Vec2, endPos: Vec2, color: string, lineWidth = 1, opacity = 1): void {
+  ctx.globalAlpha = opacity;
+  ctx.beginPath();
+  ctx.moveTo(startPos.x, startPos.y);
+  ctx.lineTo(endPos.x, endPos.y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+  ctx.globalAlpha = 1.0;
 }
 
-class BezierCanvas {
-    private ctx: CanvasRenderingContext2D;
-    private canvas: HTMLCanvasElement;
-    private board: Board;
-    private circles: Circle[];
-    private cursor: CSSStyleDeclaration['cursor'];
-    private isAnimating = false;
-    private step = 0;
-    private total = 200;
-    private drawer: Drawer;
-    private minPos: Vec2;
-    private maxPos: Vec2;
-
-    constructor(canvas: HTMLCanvasElement, board: Board, circles: Circle[]) {
-        this.board = board;
-        this.circles = circles;
-        this.canvas = canvas;
-        this.cursor = 'default';
-        this.ctx = this.canvas.getContext("2d")!;
-        this.drawer = new Drawer(this.ctx);
-        this.canvas.width = this.canvas.height = this.board.dimension + this.board.padding;
-        this.canvas.onmousedown = (e) => this.onMouseDown(e);
-        this.canvas.onmousemove = (e) => this.onMouseMove(e);
-        this.canvas.onmouseup = (e) => this.onMouseUp(e);
-        this.minPos = new Vec2(this.board.padding, this.board.padding);
-        this.maxPos = new Vec2(this.board.dimension, this.board.dimension);
-    }
-
-    onMouseDown(e: MouseEvent): void {
-        for (const circle of this.circles) {
-            circle.isPressed = circle.isHovered;
-
-            if (circle.isPressed) {
-                return;
-            }
-        }
-
-        const mousePos = Vec2.fromMouse(canvas, e);
-
-        if (mousePos.isInside(this.minPos, this.maxPos)) {
-            let minDist = Infinity;
-            let circleWithSmallestDistance = null;
-
-            for (const circle of this.circles) {
-                const dist = circle.pos.dist(mousePos);
-                if (dist < minDist) {
-                    minDist = dist;
-                    circleWithSmallestDistance = circle;
-                }
-            }
-
-            circleWithSmallestDistance!.update(mousePos);
-        }
-    }
-
-    onMouseMove(e: MouseEvent): void {
-        const mousePos = Vec2.fromMouse(canvas, e);
-
-        for (const circle of this.circles) {
-            const dist = mousePos.dist(circle.pos);
-            const insideCircle = dist < circle.radius;
-
-            circle.isHovered = insideCircle;
-
-            if (circle.isPressed) {
-                circle.update(mousePos.clamp(this.minPos, this.maxPos));
-            }
-        }
-
-        this.cursor = this.circles.some(c => c.isHovered) ? 'pointer': 'default';
-    }
-
-    onMouseUp(_e: MouseEvent): void {
-        for (const circle of this.circles) {
-            circle.isPressed = false;
-        }
-    }
-
-    renderBoard(): void {
-        this.renderGrid();
-        this.renderCircles();
-    }
-
-    loop(): void {
-        this.renderBoard();
-        if (this.isAnimating) {
-            this.animate();
-        }
-        window.requestAnimationFrame(this.loop.bind(this));
-    }
-
-    renderGrid(): void {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.canvas.style.cursor = this.cursor;
-
-        /* Have to take account the padding when drawing */
-
-        // Vertical lines
-        for (let i = this.board.padding; i <= this.board.dimension; i+= this.board.step) {
-            this.drawer.drawLine(new Vec2(i, this.board.padding), new Vec2(i, this.board.dimension), GRID_COLOR);
-        }
-
-        // Horizontal lines
-        for (let i = this.board.padding; i <= this.board.dimension; i+= this.board.step) {
-            this.drawer.drawLine(new Vec2(this.board.padding, i), new Vec2(this.board.dimension, i), GRID_COLOR);
-        }
-    }
-
-    renderCircles(): void {
-        for (const circle of this.circles) {
-            this.drawer.drawCircle(circle);
-        }
-
-        this.drawer.drawLine(this.circles[0].pos, this.circles[1].pos, CONNECTING_POINT_COLOR, 2);
-        this.drawer.drawLine(this.circles[1].pos, this.circles[2].pos, CONNECTING_POINT_COLOR, 2);
-        this.drawer.drawLine(this.circles[2].pos, this.circles[3].pos, CONNECTING_POINT_COLOR, 2);
-
-        let prevV = null;
-        const steps = 100;
-
-         // If step is 0.01, we will have floating precision issue
-         // Do t/steps like this will prevent it
-        for (let t = 0; t <= steps; t += 1) {
-            const step = t/steps;
-
-            const l1 = Vec2.lerp(this.circles[0].pos, this.circles[1].pos, step);
-            const l2 = Vec2.lerp(this.circles[1].pos, this.circles[2].pos, step);
-            const l3 = Vec2.lerp(this.circles[2].pos, this.circles[3].pos, step);
-
-            const ll1 = Vec2.lerp(l1, l2, step);
-            const ll2 = Vec2.lerp(l2, l3, step);
-            const ll3 = Vec2.lerp(ll1, ll2, step);
-
-            if (prevV) {
-                this.drawer.drawLine(prevV, ll3, BEZIER_CURVE_COLOR, 2);
-            }
-
-            prevV = new Vec2(ll3.x, ll3.y);
-        }
-    }
-
-    animate(): void {
-       const t = this.step / this.total;
-
-       const l1 = Vec2.lerp(this.circles[0].pos, this.circles[1].pos, t);
-       this.drawer.drawCircle(new Circle(l1, 8, FIRST_LAYER_COLOR));
-
-       const l2 = Vec2.lerp(this.circles[1].pos, this.circles[2].pos, t);
-       this.drawer.drawCircle(new Circle(l2, 8, FIRST_LAYER_COLOR));
-
-       const l3 = Vec2.lerp(this.circles[2].pos, this.circles[3].pos, t);
-       this.drawer.drawCircle(new Circle(l3, 8, FIRST_LAYER_COLOR));
-
-       const ll1 = Vec2.lerp(l1, l2, t);
-       this.drawer.drawCircle(new Circle(ll1, 8, SECOND_LAYER_COLOR));
-
-       const ll2 = Vec2.lerp(l2, l3, t);
-       this.drawer.drawCircle(new Circle(ll2, 8, SECOND_LAYER_COLOR));
-
-       const ll3 = Vec2.lerp(ll1, ll2, t);
-       this.drawer.drawCircle(new Circle(ll3, 8, SECOND_LAYER_COLOR));
-
-       this.drawer.drawLine(l1, l2, FIRST_LAYER_COLOR, 2);
-
-       this.drawer.drawLine(l2, l3, FIRST_LAYER_COLOR, 2);
-
-       this.drawer.drawLine(ll1, ll2, SECOND_LAYER_COLOR, 2);
-
-       this.step += 1;
-
-       if (this.step === this.total) {
-           this.isAnimating = false;
-           this.step = 0;
-       }
-    }
-
-    triggerAnimation(): void {
-        this.isAnimating = true;
-    }
+function drawCircle(ctx: CanvasRenderingContext2D, pos: Vec2, radius: number, color: string, renderShadow = false): void {
+  ctx.save();
+  ctx.beginPath();
+  if (renderShadow) {
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = "orange";
+  }
+  ctx.arc(pos.x, pos.y, radius, 0, 2 * Math.PI, false);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.stroke();
+  ctx.restore();
 }
 
-function main(): void {
-    const circles = [
-        new Circle(new Vec2(CENTER - (STEP * 5), CENTER + (STEP * 3)), RADIUS, POINT_COLOR),
-        new Circle(new Vec2(CENTER - (STEP * 5), CENTER - (STEP * 3)), RADIUS, POINT_COLOR),
-        new Circle(new Vec2(CENTER + (STEP * 4), CENTER - (STEP * 3)), RADIUS, POINT_COLOR),
-        new Circle(new Vec2(CENTER + (STEP * 4), CENTER + (STEP * 3)), RADIUS, POINT_COLOR)
-    ];
-    const board = new Board(DIMENSION, STEP, PADDING);
-    const bezierCanvas = new BezierCanvas(canvas, board, circles);
-
-    window.requestAnimationFrame(bezierCanvas.loop.bind(bezierCanvas));
-    animateButton.addEventListener('click', () => bezierCanvas.triggerAnimation());
+function renderGrid(): void {
+  ctx.clearRect(0, 0, GRID_WIDTH, GRID_HEIGHT);
+  const cell_width = GRID_WIDTH / GRID_COLS;
+  const cell_height = GRID_HEIGHT / GRID_ROWS;
+  for (let x = 0; x <= GRID_COLS; x++) {
+    drawLine(ctx, new Vec2(x*cell_width, 0), new Vec2(x*cell_width, GRID_HEIGHT), GRID_COLOR, 1, 0.5);
+  }
+  for (let y = 0; y <= GRID_ROWS; y++) {
+    drawLine(ctx, new Vec2(0, y*cell_height), new Vec2(GRID_WIDTH, y*cell_height), GRID_COLOR, 1, 0.5);
+  }
 }
 
-main();
+const startRenderingBezier = false;
+const points: Point[] = [];
+let prevPos: Vec2 | null, curPos: Vec2 | null = null;
+let t = 0;
+
+function visualizeBezier(points: Point[], t: number): void {
+  const aux = (points: Vec2[], t: number, level: number) => {
+    if (points.length == 0) {
+      return;
+    }
+
+    for (let i = 0; i < points.length; i++) {
+      if (i > points.length - 2) {
+        break;
+      }
+
+      const thisPoint = points[i];
+      const nextPoint = points[i+1];
+      drawLine(ctx, thisPoint, nextPoint, CONNECTING_POINT_COLOR, 2);
+    }
+
+    let pointLerps = [];
+    for (let i = 0; i < points.length; i++) {
+      if (i > points.length - 2) {
+        break;
+      }
+
+      const thisPoint = points[i];
+      const nextPoint = points[i+1];
+      pointLerps.push(lerp(thisPoint, nextPoint, t));
+    }
+
+    for (const pointLerp of pointLerps) {
+      if (pointLerps.length === 1 && level >= 1) {
+        drawCircle(ctx, pointLerp, RADIUS, SECOND_LAYER_COLOR);
+      } else {
+        drawCircle(ctx, pointLerp, RADIUS, FIRST_LAYER_COLOR);
+      }
+    }
+    aux(pointLerps, t, level + 1)
+  }
+  aux(points.map(p => p.pos), t, 0);
+}
+
+function calculateBezierAtStep(points: Point[], step: number): Vec2 | null {
+  const aux = (points: Vec2[], step: number, level: number) => {
+    if (points.length == 0) {
+      return null;
+    }
+
+    for (let i = 0; i < points.length; i++) {
+      if (i > points.length - 2) {
+        break;
+      }
+
+      const thisPoint = points[i];
+      const nextPoint = points[i+1];
+    }
+
+    let pointLerps = [];
+    for (let i = 0; i < points.length; i++) {
+      if (i > points.length - 2) {
+        break;
+      }
+
+      const thisPoint = points[i];
+      const nextPoint = points[i+1];
+      pointLerps.push(lerp(thisPoint, nextPoint, step));
+    }
+
+    if (pointLerps.length === 1 && level >= 1) {
+      return new Vec2(pointLerps[0].x, pointLerps[0].y)
+    }
+    return aux(pointLerps, step, level + 1);
+  }
+  return aux(points.map(p => p.pos), step, 0);
+}
+
+function frame(): void {
+  t += 0.001;
+  if (t > 1) t = 0;
+
+  renderGrid();
+  canvas.style.cursor = points.some(c => c.isHovered) ? 'pointer': 'default';
+
+  for (const point of points) {
+    drawCircle(ctx, point.pos, RADIUS, POINT_COLOR, point.isPressed);
+  }
+
+  if (showAnimation) {
+    visualizeBezier(points, t);
+  }
+
+  let prevPos: Vec2 | null = null;
+  let curPos: Vec2 | null  = null;
+  const steps = 1000;
+
+   // If step is 0.01, we will have floating precision issue
+   // Do t/steps likethis will prevent it
+  for (let t = 0; t <= steps; t += 1) {
+    const step = t / steps;
+    curPos = calculateBezierAtStep(points, step);
+    if (prevPos && curPos) drawLine(ctx, prevPos, curPos, BEZIER_CURVE_COLOR, 2);
+    prevPos = curPos;
+  }
+  requestAnimationFrame(frame);
+}
+
+function isPointInsideCircle(point_pos: Vec2, circle_pos: Vec2, radius: number): boolean {
+    let dx = point_pos.x - circle_pos.x;
+    let dy = point_pos.y - circle_pos.y;
+    let distance_sqr = dx * dx + dy * dy;
+    let radius_sqr = radius * radius;
+    return distance_sqr <= radius_sqr;
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  const mousePos = new Vec2(e.offsetX, e.offsetY);
+  for (const point of points) {
+    if (isPointInsideCircle(mousePos, point.pos, RADIUS)) {
+      return;
+    }
+  }
+
+  const point = new Point(new Vec2(e.offsetX, e.offsetY));
+  points.push(point);
+  if (!startRenderingBezier && points.length == 2) {
+    t = 0;
+  }
+})
+
+canvas.addEventListener('mousedown', (e) => {
+  for (const point of points) {
+    point.isPressed = point.isHovered;
+
+    if (point.isPressed) {
+      return;
+    }
+  }
+})
+
+let minPos = new Vec2(0, 0);
+let maxPos = new Vec2(GRID_WIDTH, GRID_HEIGHT);
+canvas.addEventListener('mousemove', (e) => {
+  const mousePos = new Vec2(e.offsetX, e.offsetY);
+
+  for (const point of points) {
+      const dist = mousePos.dist(point.pos);
+      const insidePoint = dist < RADIUS;
+
+      point.isHovered = insidePoint;
+
+      if (point.isPressed) {
+          point.pos = mousePos.clamp(minPos, maxPos);
+      }
+  }
+})
+
+canvas.addEventListener('mouseup', (e) => {
+  for (const point of points) {
+    point.isPressed = false;
+  }
+})
+
+function handleChange(checkbox: HTMLInputElement) {
+  showAnimation = checkbox.checked;
+}
+
+requestAnimationFrame(frame)
