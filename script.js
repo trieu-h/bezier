@@ -3,10 +3,7 @@ const GRID_HEIGHT = 600;
 const GRID_WIDTH = 600;
 const GRID_COLS = 20;
 const GRID_ROWS = 20;
-const STEP = 40;
 const RADIUS = 10;
-const LINE_WIDTH = 5;
-const CENTER = GRID_WIDTH / 2;
 const GRID_COLOR = '#d3d3d3';
 const BEZIER_CURVE_COLOR = '#FDFDBD';
 const POINT_COLOR = '#BCE29E';
@@ -136,8 +133,6 @@ function calculateBezierAtStep(points, step) {
             if (i > points.length - 2) {
                 break;
             }
-            const thisPoint = points[i];
-            const nextPoint = points[i + 1];
         }
         let pointLerps = [];
         for (let i = 0; i < points.length; i++) {
